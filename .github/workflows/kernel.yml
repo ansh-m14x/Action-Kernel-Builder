@@ -1,4 +1,4 @@
-Name: Build Kernel
+name: Build Kernel
 
 on: 
   workflow_dispatch:
@@ -35,8 +35,7 @@ jobs:
 
     - name: Start Building Kernel
       run: |
-        # Fix: Qualcomm Header Conflict (smem.h not found)
-        # This searches for the file and comments out the line before running ./build
+        # Fix the Qualcomm smem.h error before running the build
         find . -name "oppo_secure_common.c" -exec sed -i 's/#include <soc\/qcom\/smem.h>/\/\/ #include <soc\/qcom\/smem.h>/g' {} +
         
         chmod +x build
@@ -52,8 +51,9 @@ jobs:
     - name: Compressed as Archive
       if: always()
       run: |
-        # Look for the output folder in the workspace
-        cd $GITHUB_WORKSPACE/*/out/arch/arm64/boot/ || cd $GITHUB_WORKSPACE/out/arch/arm64/boot/ || exit 1
+        # Navigate to the boot folder (checking both possible structures)
+        [ -d myKernel/out/arch/arm64/boot ] && cd myKernel/out/arch/arm64/boot || cd out/arch/arm64/boot || echo "No boot dir found"
+        
         if [ -f Image.gz-dtb ] || [ -f Image ]; then
           zip -r9 "${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip" ./* -x "dts/*"
           echo "ZIP_PATH=$(pwd)/${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip" >> $GITHUB_ENV
@@ -71,11 +71,5 @@ jobs:
         tag: ${{ github.run_id }}-${{ steps.props.outputs.date }}
         token: ${{ secrets.GITHUB_TOKEN }}
         body: |
-          ## Build Notes
-          - **Device:** ${{ github.event.inputs.DEVICE_NAME }}
-          - **Android Version:** ${{ github.event.inputs.ANDROID_VERSION }}
-          - Check **build.log** if the zip is missing.
-
-    - name: Link of Release
-      run: |
-        echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ github.run_id }}-${{ steps.props.outputs.date }}"
+          Build finished for ${{ github.event.inputs.DEVICE_NAME }}.
+          Check the build.log if the ZIP is missing.
