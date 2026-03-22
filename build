@@ -5,7 +5,7 @@ set -e -x
 # Kernel Source
 KERNEL_SOURCE="https://github.com/KAGA-KOKO/kernel-oppo6765"
 KERNEL_BRANCH="kaga-oss"
-KERNEL_DEFCONFIG="oss_defconfig"
+KERNEL_DEFCONFIG="oppo6765_19581_defconfig"
 
 # Prebuilt Clang Toolchain (AOSP)
 CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-9.0.0_r3/clang-4691093.tar.gz"
