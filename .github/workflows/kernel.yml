@@ -1,4 +1,4 @@
-name: Build Kernel
+Name: Build Kernel
 
 on: 
   workflow_dispatch:
@@ -6,11 +6,11 @@ on:
       DEVICE_NAME:
         description: 'zip name'
         required: true
-        default: ''
+        default: 'OppoA31'
       ANDROID_VERSION:
-        description: '9.0'
+        description: 'Android Version'
         required: true
-        default: ''
+        default: 's-oss'
         type: choice
         options:
         - t-oss
@@ -26,16 +26,20 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
     - name: Packages
       run: |
         sudo apt-get update
-        sudo apt-get -y install libncurses5
-        sudo apt-get install git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 lib32ncurses5-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler python2 python3 device-tree-compiler
+        sudo apt-get install -y git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 lib32ncurses5-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler python2 python3
 
     - name: Start Building Kernel
       run: |
+        # Fix: Qualcomm Header Conflict (smem.h not found)
+        # This searches for the file and comments out the line before running ./build
+        find . -name "oppo_secure_common.c" -exec sed -i 's/#include <soc\/qcom\/smem.h>/\/\/ #include <soc\/qcom\/smem.h>/g' {} +
+        
+        chmod +x build
         export KBUILD_BUILD_USER="${{ github.actor }}"
         export KBUILD_BUILD_HOST="${{ github.event.inputs.DEVICE_NAME }}"
         ./build
@@ -46,27 +50,32 @@ jobs:
         echo "date=$(TZ=Asia/Manila date +%Y%m%d-%I%M%p)" >> $GITHUB_OUTPUT
 
     - name: Compressed as Archive
+      if: always()
       run: |
-        cd /home/runner/work/myKernel/out/arch/arm64/boot/ || exit 1
-        zip -r9 "${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip" ./* -x "dts" -x "dts/*"
+        # Look for the output folder in the workspace
+        cd $GITHUB_WORKSPACE/*/out/arch/arm64/boot/ || cd $GITHUB_WORKSPACE/out/arch/arm64/boot/ || exit 1
+        if [ -f Image.gz-dtb ] || [ -f Image ]; then
+          zip -r9 "${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip" ./* -x "dts/*"
+          echo "ZIP_PATH=$(pwd)/${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip" >> $GITHUB_ENV
+        fi
 
     - name: Release
       uses: ncipollo/release-action@v1.12.0
+      if: always()
       with:
         artifacts: |
-          /home/runner/work/myKernel/out/arch/arm64/boot/*.zip
-          /home/runner/work/myKernel/build.log
+          ${{ env.ZIP_PATH }}
+          build.log
+          **/build.log
         name: Compiled Kernel for ${{ github.event.inputs.DEVICE_NAME }} - ${{ steps.props.outputs.date }}
-        draft: false
-        prerelease: false
         tag: ${{ github.run_id }}-${{ steps.props.outputs.date }}
         token: ${{ secrets.GITHUB_TOKEN }}
         body: |
-          ## Notes
-            - Extract ${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip, look your newly-compiled kernel inside.
-            - Include building logs.
+          ## Build Notes
+          - **Device:** ${{ github.event.inputs.DEVICE_NAME }}
+          - **Android Version:** ${{ github.event.inputs.ANDROID_VERSION }}
+          - Check **build.log** if the zip is missing.
 
     - name: Link of Release
       run: |
-        echo "Enjoy your Newly Built Kernel"
         echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ github.run_id }}-${{ steps.props.outputs.date }}"
