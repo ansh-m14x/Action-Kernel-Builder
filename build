@@ -46,6 +46,16 @@ PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:/bin"
 # Enter Kernel root directory
 cd "${KERNEL_SRC}" || exit 1
 
+# --- OPPO MISSING SYMBOLS FIX START ---
+echo 'char Lcm_name[64] = "unknown";
+char Ctp_name[64] = "unknown";
+void hardwareinfo_set_prop(void *a, void *b) {}
+void sm5414_reset_charger(void) {}
+void sm5414_check_resume(void) {}' > drivers/oppo_fix.c
+
+echo 'obj-y += oppo_fix.o' >> drivers/Makefile
+# --- OPPO MISSING SYMBOLS FIX END ---
+
 # KernelSU - Disable if not building one.
 # curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
 
