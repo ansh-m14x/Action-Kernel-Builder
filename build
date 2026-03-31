@@ -3,8 +3,8 @@
 set -e -x
 
 # Kernel Source
-KERNEL_SOURCE="https://github.com/oppo-cph2015/android_kernel_oppo_cph2015"
-KERNEL_BRANCH="main"
+KERNEL_SOURCE="https://github.com/KAGA-KOKO/kernel-oppo6765"
+KERNEL_BRANCH="oss_non-ksu"
 KERNEL_DEFCONFIG="oppo6765_19581_defconfig"
 
 # Prebuilt Clang Toolchain (AOSP)
