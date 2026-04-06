@@ -1,86 +1,72 @@
-name: Build Oppo A31 Kernel
+name: Build Kernel
 
-on:
+on: 
   workflow_dispatch:
+    inputs:
+      DEVICE_NAME:
+        description: 'zip name'
+        required: true
+        default: ''
+      ANDROID_VERSION:
+        description: '9.0'
+        required: true
+        default: ''
+        type: choice
+        options:
+        - t-oss
+        - s-oss
+        - p-oss
+        - q-oss
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@main
 
-    - name: Install Build Dependencies
+    - name: Packages
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          libncurses5 git ccache automake flex lzop bison gperf build-essential \
-          zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev \
-          libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool \
-          dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen \
-          libswitch-perl policycoreutils minicom libxml-sax-base-perl \
-          libxml-simple-perl bc libc6-dev-i386 lib32ncurses5-dev \
-          libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip \
-          device-tree-compiler python2 python3
+        sudo apt-get -y install libncurses5
+        sudo apt-get install git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 lib32ncurses5-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler python2 python3 device-tree-compiler
 
-    - name: Setup Toolchains and Source
+    - name: Start Building Kernel
       run: |
-        mkdir -p $GITHUB_WORKSPACE/work
-        cd $GITHUB_WORKSPACE/work
-        
-        # 1. Download Clang (Android 9.0.0_r3 version)
-        # Using a reliable mirror to avoid Google's "Not a Robot" check
-        git clone --depth=1 https://github.com/Daisuke-E/azure-clang.git clang
-        
-        # 2. Clone GCC 64-bit (AOSP 4.9 Mirror)
-        git clone --depth=1 https://github.com/lineageos-mirror/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git -b lineage-16.0 x64
-        
-        # 3. Clone GCC 32-bit (AOSP 4.9 Mirror)
-        git clone --depth=1 https://github.com/lineageos-mirror/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9.git -b lineage-16.0 x32
-        
-        # 4. Clone Kernel Source
-        git clone --depth=1 "https://github.com/ansh-m14x/android_kernel_oppo_cph2015" -b main myKernel
+        export KBUILD_BUILD_USER="${{ github.actor }}"
+        export KBUILD_BUILD_HOST="${{ github.event.inputs.DEVICE_NAME }}"
+        ./build
 
-    - name: Compile Kernel
+    - name: Set Properties
+      id: props
       run: |
-        cd $GITHUB_WORKSPACE/work/myKernel
-        
-        # Set Environment Paths
-        export PATH="$GITHUB_WORKSPACE/work/clang/bin:$GITHUB_WORKSPACE/work/x64/bin:$GITHUB_WORKSPACE/work/x32/bin:$PATH"
-        export ARCH=arm64
-        export SUBARCH=arm64
-        export KBUILD_BUILD_USER="Ansh"
-        export KBUILD_BUILD_HOST="GitHub-Actions"
+        echo "date=$(TZ=Asia/Manila date +%Y%m%d-%I%M%p)" >> $GITHUB_OUTPUT
 
-        # Step 1: Defconfig
-        make O=out ARCH=arm64 CC=clang \
-             CLANG_TRIPLE=aarch64-linux-gnu- \
-             CROSS_COMPILE=aarch64-linux-android- \
-             CROSS_COMPILE_ARM32=arm-linux-androideabi- \
-             oppo6765_19581_defconfig
-             
-        # Step 2: Build
-        make -j$(nproc --all) O=out ARCH=arm64 CC=clang \
-             CLANG_TRIPLE=aarch64-linux-gnu- \
-             CROSS_COMPILE=aarch64-linux-android- \
-             CROSS_COMPILE_ARM32=arm-linux-androideabi- 2>&1 | tee build.log
-
-    - name: Check for Kernel Output
+    - name: Compressed as Archive
       run: |
-        # Checks for common MT6765 output names
-        if [ -f $GITHUB_WORKSPACE/work/myKernel/out/arch/arm64/boot/Image.gz-dtb ] || [ -f $GITHUB_WORKSPACE/work/myKernel/out/arch/arm64/boot/Image.gz ]; then
-           echo "Build Successful!"
-        else
-           echo "Build Failed! Displaying last 100 lines of log:"
-           tail -n 100 $GITHUB_WORKSPACE/work/myKernel/build.log
-           exit 1
-        fi
+        cd /home/runner/work/myKernel/out/arch/arm64/boot/ || exit 1
+        zip -r9 "${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip" ./* -x "dts" -x "dts/*"
 
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
+    - name: Release
+      uses: ncipollo/release-action@v1.12.0
       with:
-        name: Oppo-A31-Kernel
-        path: |
-          work/myKernel/out/arch/arm64/boot/Image.gz*
-          work/myKernel/build.log
+        artifacts: |
+          /home/runner/work/myKernel/out/arch/arm64/boot/*.zip
+          /home/runner/work/myKernel/build.log
+        name: Compiled Kernel for ${{ github.event.inputs.DEVICE_NAME }} - ${{ steps.props.outputs.date }}
+        draft: false
+        prerelease: false
+        tag: ${{ github.run_id }}-${{ steps.props.outputs.date }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        body: |
+          ## Notes
+            - Extract ${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip, look your newly-compiled kernel inside.
+            - Include building logs.
+
+    - name: Link of Release
+      run: |
+        echo "Enjoy your Newly Built Kernel"
+        echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ github.run_id }}-${{ steps.props.outputs.date }}"
