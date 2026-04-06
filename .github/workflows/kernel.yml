@@ -23,16 +23,23 @@ jobs:
           libxml-simple-perl bc libc6-dev-i386 lib32ncurses5-dev \
           libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip \
           device-tree-compiler python2 python3
-
     - name: Setup Toolchains and Source
       run: |
         mkdir -p $GITHUB_WORKSPACE/work
         cd $GITHUB_WORKSPACE/work
         
-        # Download Clang (Android 9.0.0_r3 version as requested)
+        # Download Clang - Using a direct link from Android's Gitiles 'tgz' archive
         mkdir clang
-        curl -Lsq "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-9.0.0_r3/clang-4691093.tar.gz" -o clang.tgz
-        tar -xzf clang.tgz -C clang
+        curl -L "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-9.0.0_r3/clang-4691093.tar.gz" -o clang.tgz
+        
+        # Check if the file is actually a gzip before extracting
+        if file clang.tgz | grep -q 'gzip'; then
+          tar -xzf clang.tgz -C clang
+        else
+          echo "Download failed or link is dead. File content:"
+          cat clang.tgz | head -n 5
+          exit 1
+        fi
         
         # Clone GCC Toolchains
         git clone --depth=1 "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9" -b master-kernel-build-2021 x64
@@ -40,6 +47,7 @@ jobs:
         
         # Clone Kernel Source
         git clone --depth=1 "https://github.com/ansh-m14x/android_kernel_oppo_cph2015" -b main myKernel
+
 
     - name: Compile Kernel
       run: |
