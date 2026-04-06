@@ -1,32 +1,50 @@
-#!/bin/sh
+#!/bin/bash
 set -e -x
 
-# Using a newer Clang mirror that includes LLD and LLVM tools
-CLANG_REPO="https://github.com/kdrag0n/proton-clang"
 WORK="${HOME}/work"
 KERNEL_SRC="${WORK}/myKernel"
 
+# Prepare Directory
 mkdir -p "${WORK}"
 cd "${WORK}"
 
-# Clone Clang (Proton Clang is great for "Clang-only" builds)
-[ ! -d clang ] && git clone --depth=1 "${CLANG_REPO}" clang
+# 1. Clone Clang 6.0.2
+if [ ! -d clang ]; then
+    git clone --depth=1 https://github.com/KAGA-KOKO/clang-6.0.2 clang
+fi
 
-# Clone Kernel Source
-[ ! -d myKernel ] && git clone --depth=1 "https://github.com/ansh-m14x/kernel-oppo-a31" -b android-9.0 myKernel
+# 2. Clone GCC 64-bit (Alternative Mirror)
+if [ ! -d x64 ]; then
+    git clone --depth=1 https://github.com/iscle/aarch64-linux-android-4.9 x64
+fi
 
-# Setting Path
-PATH="${WORK}/clang/bin:/usr/bin:/bin"
+# 3. Clone GCC 32-bit (Alternative Mirror)
+if [ ! -d x32 ]; then
+    git clone --depth=1 https://github.com/arter97/arm-linux-androideabi-4.9 x32
+fi
+
+# 4. Clone Kernel Source
+if [ ! -d myKernel ]; then
+    git clone --depth=1 "https://github.com/ansh-m14x/kernel-oppo-a31" -b android-9.0 myKernel
+fi
+
+# Set Environment Variables
+export PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:$PATH"
+export KBUILD_BUILD_HOST="PIE"
+export KBUILD_BUILD_USER="Ansh"
+export LOCALVERSION="-DiscussionVerse"
 
 cd "${KERNEL_SRC}"
 
-# Compilation using LLVM=1 (This tells it to use Clang for CC, LD, AR, etc.)
-make O=out ARCH=arm64 oppo6765_19581_defconfig
+# Step 1: Configuration
+make -j$(nproc --all) O=out ARCH=arm64 oppo6765_19581_defconfig
 
-make -j$(nproc --all) O=out ARCH=arm64 \
-    CC=clang \
-    LLVM=1 \
-    LLVM_IAS=1 \
-    CLANG_TRIPLE=aarch64-linux-gnu- \
-    CROSS_COMPILE=aarch64-linux-gnu- \
-    CROSS_COMPILE_ARM32=arm-linux-gnueabi- 2>&1 | tee build.log
+# Step 2: Build
+# Note: Added CROSS_COMPILE prefixes to match the new mirrors
+make -j$(nproc --all) ARCH=arm64 O=out \
+                      HOSTCC="clang" \
+                      HOSTCXX="clang++" \
+                      CC="clang" \
+                      CLANG_TRIPLE=aarch64-linux-gnu- \
+                      CROSS_COMPILE=aarch64-linux-android- \
+                      CROSS_COMPILE_ARM32=arm-linux-androideabi- 2>&1 | tee build.log
