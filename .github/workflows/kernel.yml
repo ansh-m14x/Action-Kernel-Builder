@@ -29,56 +29,58 @@ jobs:
         mkdir -p $GITHUB_WORKSPACE/work
         cd $GITHUB_WORKSPACE/work
         
-        # Clone your specific Clang version
-        git clone --depth=1 https://github.com/KAGA-KOKO/clang-6.0.2 clang
+        # 1. Download Clang (Android 9.0.0_r3 version)
+        # Using a reliable mirror to avoid Google's "Not a Robot" check
+        git clone --depth=1 https://github.com/Daisuke-E/azure-clang.git clang
         
-        # Clone GCC Toolchains (Necessary for header linking)
-        git clone --depth=1 "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9" -b master-kernel-build-2021 x64
-        git clone --depth=1 "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9" -b master-kernel-build-2021 x32
+        # 2. Clone GCC 64-bit (AOSP 4.9 Mirror)
+        git clone --depth=1 https://github.com/lineageos-mirror/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git -b lineage-16.0 x64
         
-        # Clone Kernel Source
+        # 3. Clone GCC 32-bit (AOSP 4.9 Mirror)
+        git clone --depth=1 https://github.com/lineageos-mirror/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9.git -b lineage-16.0 x32
+        
+        # 4. Clone Kernel Source
         git clone --depth=1 "https://github.com/ansh-m14x/android_kernel_oppo_cph2015" -b main myKernel
 
     - name: Compile Kernel
       run: |
         cd $GITHUB_WORKSPACE/work/myKernel
         
-        # Set Paths and Exports
+        # Set Environment Paths
         export PATH="$GITHUB_WORKSPACE/work/clang/bin:$GITHUB_WORKSPACE/work/x64/bin:$GITHUB_WORKSPACE/work/x32/bin:$PATH"
         export ARCH=arm64
         export SUBARCH=arm64
-        export KBUILD_BUILD_USER="Gemini"
+        export KBUILD_BUILD_USER="Ansh"
         export KBUILD_BUILD_HOST="GitHub-Actions"
 
-        # 1. Clean and Configure
-        make O=out clean
-        make O=out mrproper
+        # Step 1: Defconfig
         make O=out ARCH=arm64 CC=clang \
              CLANG_TRIPLE=aarch64-linux-gnu- \
              CROSS_COMPILE=aarch64-linux-android- \
              CROSS_COMPILE_ARM32=arm-linux-androideabi- \
              oppo6765_19581_defconfig
              
-        # 2. Start Compilation
+        # Step 2: Build
         make -j$(nproc --all) O=out ARCH=arm64 CC=clang \
              CLANG_TRIPLE=aarch64-linux-gnu- \
              CROSS_COMPILE=aarch64-linux-android- \
              CROSS_COMPILE_ARM32=arm-linux-androideabi- 2>&1 | tee build.log
 
-    - name: Check for Output
+    - name: Check for Kernel Output
       run: |
-        if [ -f $GITHUB_WORKSPACE/work/myKernel/out/arch/arm64/boot/Image.gz-dtb ]; then
+        # Checks for common MT6765 output names
+        if [ -f $GITHUB_WORKSPACE/work/myKernel/out/arch/arm64/boot/Image.gz-dtb ] || [ -f $GITHUB_WORKSPACE/work/myKernel/out/arch/arm64/boot/Image.gz ]; then
            echo "Build Successful!"
         else
-           echo "Build Failed! Check the log below."
+           echo "Build Failed! Displaying last 100 lines of log:"
            tail -n 100 $GITHUB_WORKSPACE/work/myKernel/build.log
            exit 1
         fi
 
-    - name: Upload Kernel Image
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Oppo-A31-Kernel-Image
+        name: Oppo-A31-Kernel
         path: |
-          work/myKernel/out/arch/arm64/boot/Image.gz-dtb
+          work/myKernel/out/arch/arm64/boot/Image.gz*
           work/myKernel/build.log
