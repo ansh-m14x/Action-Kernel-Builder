@@ -2,7 +2,6 @@ name: Build Little Kernel
 
 on:
   push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,15 +11,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Prepare Workspace
+        run: |
+          # Copy source contents to root so the Makefile is found
+          cp -r ./lk/* .
+          
+          # Patch security: Disable Verified Boot to avoid bootlooping on custom builds
+          sed -i 's/MTK_VERIFIED_BOOT_SUPPORT := yes/MTK_VERIFIED_BOOT_SUPPORT := no/g' project/k65v1_64_bsp.mk
+          sed -i 's/MTK_VERIFIED_BOOT_SUPPORT = yes/MTK_VERIFIED_BOOT_SUPPORT = no/g' project/k65v1_64_bsp.mk
+
       - name: Install Toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-arm-none-eabi make
 
       - name: Build LK
-        # Using the PROJECT variable as defined in your Makefile
         run: |
-          make PROJECT=k65v1_64_bsp
+          # Build using the PROJECT variable and explicit toolchain prefix
+          make PROJECT=k65v1_64_bsp TOOLCHAIN_PREFIX=arm-none-eabi-
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
