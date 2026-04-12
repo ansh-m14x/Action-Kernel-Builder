@@ -2,6 +2,7 @@ name: Build Little Kernel
 
 on:
   push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -9,16 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install Toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-arm-none-eabi make
 
       - name: Build LK
+        # Using the PROJECT variable as defined in your Makefile
         run: |
-          make k65v1_64_bsp
+          make PROJECT=k65v1_64_bsp
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
