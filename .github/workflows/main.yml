@@ -18,12 +18,10 @@ jobs:
 
       - name: Build LK
         run: |
-          # Use the target specified in the repo. 
-          # Based on David's repo, the likely target is k65v1_64_bsp
           make k65v1_64_bsp
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: lk-binaries
           path: |
