@@ -25,7 +25,7 @@ fi
 
 # 4. Clone Kernel Source
 if [ ! -d myKernel ]; then
-    git clone --depth=1 "https://github.com/ansh-m14x/android_kernel_oppo_cph2015" -b android-9.0 myKernel
+    git clone --depth=1 "https://github.com/ansh-m14x/android_kernel_oppo_cph2015" -b main myKernel
 fi
 
 # Set Environment Variables
