@@ -1,72 +1,79 @@
-name: Build Kernel
 
-on: 
-  workflow_dispatch:
-    inputs:
-      DEVICE_NAME:
-        description: 'zip name'
-        required: true
-        default: ''
-      ANDROID_VERSION:
-        description: '9.0'
-        required: true
-        default: ''
-        type: choice
-        options:
-        - t-oss
-        - s-oss
-        - p-oss
-        - q-oss
-
-permissions:
-  contents: write
+name: A31 Kernel Build (MT6765)
+on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04 # Latest Noble runner
     steps:
-    - name: Checkout
-      uses: actions/checkout@main
+    - name: Checkout Source
+      uses: actions/checkout@v4
 
-    - name: Packages
+    - name: Install Build Packages (Legacy Noble Fix)
       run: |
+        # Focal repos for Python 2 & libncurses5
+        echo "deb http://archive.ubuntu.com/ubuntu/ focal main universe" | sudo tee -a /etc/apt/sources.list
         sudo apt-get update
-        sudo apt-get -y install libncurses5
-        sudo apt-get install git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 lib32ncurses5-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler python2 python3 device-tree-compiler
+        
+        sudo apt-get -y install libncurses5 python2 python3 \
+        git ccache automake flex lzop bison gperf build-essential zip curl \
+        zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev \
+        libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool \
+        make optipng maven libssl-dev pwgen bc libc6-dev-i386 \
+        libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip \
+        device-tree-compiler libtinfo5
+        
+        # Symlink fix for MTK Scripts
+        sudo ln -sf /usr/bin/python2 /usr/bin/python
 
-    - name: Start Building Kernel
+    - name: Install Google Repo
       run: |
-        export KBUILD_BUILD_USER="${{ github.actor }}"
-        export KBUILD_BUILD_HOST="${{ github.event.inputs.DEVICE_NAME }}"
-        ./build
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        sudo ln -sf ~/bin/repo /usr/bin/repo
 
-    - name: Set Properties
-      id: props
+    - name: Download Toolchains
       run: |
-        echo "date=$(TZ=Asia/Manila date +%Y%m%d-%I%M%p)" >> $GITHUB_OUTPUT
+        mkdir -p ${{ github.workspace }}/tools
+        # KAGA-KOKO Clang 6.0.2
+        git clone https://github.com/KAGA-KOKO/clang-6.0.2 -b clang --depth=1 ${{ github.workspace }}/tools/clang
+        # AOSP GCC 4.9 (Essential for 4.9 Kernel)
+        git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b ndk-release-r16 --depth=1 ${{ github.workspace }}/tools/gcc64
+        git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b ndk-release-r16 --depth=1 ${{ github.workspace }}/tools/gcc32
 
-    - name: Compressed as Archive
+    - name: Compile Kernel
       run: |
-        cd /home/runner/work/myKernel/out/arch/arm64/boot/ || exit 1
-        zip -r9 "${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip" ./* -x "dts" -x "dts/*"
+        # Setup PATH
+        export PATH=${{ github.workspace }}/tools/clang/bin:${{ github.workspace }}/tools/gcc64/bin:${{ github.workspace }}/tools/gcc32/bin:$PATH
+        
+        # Environment Vars
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        export CROSS_COMPILE=aarch64-linux-android-
+        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+        
+        # Build logic
+        cd kernel-4.9
+        make O=out clean
+        make O=out mrproper
+        
+        # Use your project specific defconfig
+        make O=out oppo6765_19581_defconfig
+        
+        # Compile command
+        make -j$(nproc) O=out \
+             CC=clang \
+             CLANG_TRIPLE=$CLANG_TRIPLE \
+             CROSS_COMPILE=$CROSS_COMPILE \
+             CROSS_COMPILE_ARM32=$CROSS_COMPILE_ARM32 \
+             Image.gz-dtb
 
-    - name: Release
-      uses: ncipollo/release-action@v1.12.0
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
       with:
-        artifacts: |
-          /home/runner/work/myKernel/out/arch/arm64/boot/*.zip
-          /home/runner/work/myKernel/build.log
-        name: Compiled Kernel for ${{ github.event.inputs.DEVICE_NAME }} - ${{ steps.props.outputs.date }}
-        draft: false
-        prerelease: false
-        tag: ${{ github.run_id }}-${{ steps.props.outputs.date }}
-        token: ${{ secrets.GITHUB_TOKEN }}
-        body: |
-          ## Notes
-            - Extract ${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.zip, look your newly-compiled kernel inside.
-            - Include building logs.
-
-    - name: Link of Release
-      run: |
-        echo "Enjoy your Newly Built Kernel"
-        echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ github.run_id }}-${{ steps.props.outputs.date }}"
+        name: A31-Kernel-Image
+        path: |
+          kernel-4.9/out/arch/arm64/boot/Image.gz-dtb
+          kernel-4.9/out/.config
