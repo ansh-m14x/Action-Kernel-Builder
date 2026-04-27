@@ -12,9 +12,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    # Release create karne ke liye ye permissions zaruri hain
-    permissions:
-      contents: write
 
     steps:
        - name: Checkout
@@ -23,7 +20,7 @@ jobs:
        - name: Downloading Ozip Now.. 
          run: |
             sudo apt-get update
-            sudo apt install aria2 python3-pip zip -y
+            sudo apt install aria2 python3-pip zip jq -y
             aria2c "$FIRMWARE_LINK"
              
        - name: Decrypting Ozip Now
@@ -33,21 +30,12 @@ jobs:
              python3 ozipdecrypt.py "$FIRMWARE_NAME"
              zip -r "$FIRMWARE_ZIP_NAME.zip" ./out/*
 
-       - name: Upload to Artifacts (Backup)
-         uses: actions/upload-artifact@v4
-         with:
-           name: Decrypted-CPH2015
-           path: ./*.zip
-           retention-days: 7
-
-       - name: Create GitHub Release (Public Link)
-         uses: softprops/action-gh-release@v2
-         with:
-           tag_name: Decrypted_${{ github.run_number }}
-           name: Decrypted Firmware CPH2015 (Build ${{ github.run_number }})
-           body: |
-             OZIP Decrypted successfully.
-             Filename: ${{ env.FIRMWARE_ZIP_NAME }}.zip
-           files: ./*.zip
-         env:
-           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+       - name: Upload to GoFile (Unlimited Size)
+         run: |
+             # GoFile server check aur upload
+             SERVER=$(curl -s https://api.gofile.io/getServer | jq -r .data.server)
+             RESPONSE=$(curl -F "file=@${{ env.FIRMWARE_ZIP_NAME }}.zip" https://${SERVER}.gofile.io/uploadFile)
+             DOWNLOAD_LINK=$(echo $RESPONSE | jq -r .data.downloadPage)
+             echo "--------------------------------------------------"
+             echo "DOWNLOAD LINK: $DOWNLOAD_LINK"
+             echo "--------------------------------------------------"
