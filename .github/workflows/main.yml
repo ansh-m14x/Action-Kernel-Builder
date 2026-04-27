@@ -1,45 +1,63 @@
-name: Build Little Kernel
+name: OZIP Decrypter
 
 on:
-  push:
-  workflow_dispatch:
+#  release:
+#    types: [published]
+#  push:
+#    branches:
+#      - master
+#    paths:
+#      - '.config'
+#  schedule:
+#    - cron: 0 8 * * 5
+  watch:
+    types: [started]
+
+env:
+  FIRMWARE_LINK: https://assorted.downloads.oppo.com/firmware/CPH2015/CPH2015PUEX_11_OTA_0610_all_wv6l4jM4JLIV.ozip
+  FIRMWARE_NAME: CPH2015PUEX_11_OTA_0610_all_wv6l4jM4JLIV.ozip
+  FIRMWARE_ZIP_NAME: CPH2015
+  TZ: Asia/Kolkata
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+       - name: Checkout
+         uses: actions/checkout@master
+         
+       - name: Downloading Ozip Now.. 
+         run: |
+            sudo -E apt-get -qq update
+            sudo apt install aria2 expect -y
+            aria2c $FIRMWARE_LINK
+             
+       - name: Decrypting Ozip Now
+         run: |
+             sudo -E apt-get -qq update
+             sudo apt-get install python3
+             sudo apt-get install pip3
+             sudo -H pip3 install --upgrade pip3
+             sudo -H pip3 install setuptools wheel docopt pycryptodome zip
+             wget https://raw.githubusercontent.com/techyminati/oppo_ozip_decrypt/master/ozipdecrypt.py
+             sudo python ozipdecrypt.py $FIRMWARE_NAME
+             zip -r $FIRMWARE_ZIP_NAME.zip ./out/*
 
-      - name: Setup Source
-        run: |
-          # 1. Check if lk/ exists
-          if [ -d "lk" ]; then
-            echo "Found lk directory, moving contents to root..."
-            cp -r lk/* .
-          else
-            echo "lk directory not found! Checking current files:"
-            ls -F
-            # If the files are already in root, this script does nothing
-          fi
-
-      - name: Install Toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi make
-
-      - name: Build LK
-        run: |
-          # Verify Makefile exists before building
-          if [ -f "Makefile" ]; then
-            make PROJECT=k65v1_64_bsp TOOLCHAIN_PREFIX=arm-none-eabi-
-          else
-            echo "Makefile not found in root! Aborting."
-            exit 1
-          fi
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lk-binaries
-          path: build-k65v1_64_bsp/lk.bin
+       - name: Upload Decrypted Zip
+         run: |
+              expect -c " 
+              spawn sftp ${{ secrets.SFUSER }}@frs.sourceforge.net
+              expect \"yes/no\"
+              send \"yes\r\"
+              expect \"Password\"        
+              send \"${{ secrets.SFPASS }}\r\"
+              expect \"sftp> \"
+              send \"cd ${{ secrets.SFDIR }}\r\"
+              set timeout -1
+              send \"put $FIRMWARE_ZIP_NAME.zip\r\"
+              expect \"Uploading\"
+              expect \"100%\"
+              expect \"sftp>\"
+              send \"bye\r\"
+              interact"     
