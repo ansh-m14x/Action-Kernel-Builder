@@ -1,17 +1,7 @@
 name: OZIP Decrypter
 
 on:
-#  release:
-#    types: [published]
-#  push:
-#    branches:
-#      - master
-#    paths:
-#      - '.config'
-#  schedule:
-#    - cron: 0 8 * * 5
-  watch:
-    types: [started]
+  workflow_dispatch: # Isse "Run Workflow" ka button aa jayega
 
 env:
   FIRMWARE_LINK: https://assorted.downloads.oppo.com/firmware/CPH2015/CPH2015PUEX_11_OTA_0610_all_wv6l4jM4JLIV.ozip
@@ -25,39 +15,36 @@ jobs:
 
     steps:
        - name: Checkout
-         uses: actions/checkout@master
+         uses: actions/checkout@v4
          
        - name: Downloading Ozip Now.. 
          run: |
-            sudo -E apt-get -qq update
-            sudo apt install aria2 expect -y
-            aria2c $FIRMWARE_LINK
+            sudo apt-get update
+            sudo apt install aria2 expect python3-pip -y
+            aria2c "$FIRMWARE_LINK"
              
        - name: Decrypting Ozip Now
          run: |
-             sudo -E apt-get -qq update
-             sudo apt-get install python3
-             sudo apt-get install pip3
-             sudo -H pip3 install --upgrade pip3
-             sudo -H pip3 install setuptools wheel docopt pycryptodome zip
+             # Dependencies install karne ka sahi tarika
+             pip3 install setuptools wheel docopt pycryptodome
              wget https://raw.githubusercontent.com/techyminati/oppo_ozip_decrypt/master/ozipdecrypt.py
-             sudo python ozipdecrypt.py $FIRMWARE_NAME
-             zip -r $FIRMWARE_ZIP_NAME.zip ./out/*
+             python3 ozipdecrypt.py "$FIRMWARE_NAME"
+             # Out folder check karke zip banana
+             zip -r "$FIRMWARE_ZIP_NAME.zip" ./out/*
 
        - name: Upload Decrypted Zip
          run: |
+              # Pehle check kar ki file bani bhi hai ya nahi
+              ls -lh "$FIRMWARE_ZIP_NAME.zip"
               expect -c " 
               spawn sftp ${{ secrets.SFUSER }}@frs.sourceforge.net
-              expect \"yes/no\"
-              send \"yes\r\"
+              expect \"yes/no\" { send \"yes\r\"; exp_continue }
               expect \"Password\"        
               send \"${{ secrets.SFPASS }}\r\"
               expect \"sftp> \"
               send \"cd ${{ secrets.SFDIR }}\r\"
               set timeout -1
               send \"put $FIRMWARE_ZIP_NAME.zip\r\"
-              expect \"Uploading\"
-              expect \"100%\"
               expect \"sftp>\"
               send \"bye\r\"
-              interact"     
+              interact"
