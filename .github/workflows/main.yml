@@ -1,7 +1,7 @@
 name: OZIP Decrypter
 
 on:
-  workflow_dispatch: # Isse "Run Workflow" ka button aa jayega
+  workflow_dispatch:
 
 env:
   FIRMWARE_LINK: https://assorted.downloads.oppo.com/firmware/CPH2015/CPH2015PUEX_11_OTA_0610_all_wv6l4jM4JLIV.ozip
@@ -20,31 +20,20 @@ jobs:
        - name: Downloading Ozip Now.. 
          run: |
             sudo apt-get update
-            sudo apt install aria2 expect python3-pip -y
+            sudo apt install aria2 python3-pip zip -y
             aria2c "$FIRMWARE_LINK"
              
        - name: Decrypting Ozip Now
          run: |
-             # Dependencies install karne ka sahi tarika
              pip3 install setuptools wheel docopt pycryptodome
              wget https://raw.githubusercontent.com/techyminati/oppo_ozip_decrypt/master/ozipdecrypt.py
              python3 ozipdecrypt.py "$FIRMWARE_NAME"
              # Out folder check karke zip banana
              zip -r "$FIRMWARE_ZIP_NAME.zip" ./out/*
 
-       - name: Upload Decrypted Zip
-         run: |
-              # Pehle check kar ki file bani bhi hai ya nahi
-              ls -lh "$FIRMWARE_ZIP_NAME.zip"
-              expect -c " 
-              spawn sftp ${{ secrets.SFUSER }}@frs.sourceforge.net
-              expect \"yes/no\" { send \"yes\r\"; exp_continue }
-              expect \"Password\"        
-              send \"${{ secrets.SFPASS }}\r\"
-              expect \"sftp> \"
-              send \"cd ${{ secrets.SFDIR }}\r\"
-              set timeout -1
-              send \"put $FIRMWARE_ZIP_NAME.zip\r\"
-              expect \"sftp>\"
-              send \"bye\r\"
-              interact"
+       - name: Upload to GitHub Actions
+         uses: actions/upload-artifact@v4
+         with:
+           name: Decrypted-CPH2015
+           path: ./*.zip # Jitni bhi zip files hain sab upload ho jayengi
+           retention-days: 7 # 7 din baad auto-delete ho jayegi
