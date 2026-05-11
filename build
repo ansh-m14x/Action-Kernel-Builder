@@ -14,7 +14,6 @@ GCC_x32="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/a
 GCC_BRANCH="master-kernel-build-2021"
 
 # Setup make Command
-# Note: Added LD=ld.lld to ensure clang usage if your toolchain supports it
 make_fun() {
 	make O=out ARCH=arm64 CC=clang HOSTCC=clang DTC=dtc \
 		CLANG_TRIPLE=aarch64-linux-gnu- \
@@ -42,14 +41,14 @@ PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:/bin"
 # Enter Kernel root directory
 cd "${KERNEL_SRC}" || exit 1
 
-# 1. Clone KernelSU-Next (legacy branch) into drivers/kernelsu
-# This replaces the tiann/KernelSU version to match your new repo
+# 1. Clone KernelSU-Next (Legacy Branch)
+# Using the repo and branch you specified
 if [ ! -d "drivers/kernelsu" ]; then
     git clone https://github.com/KernelSU-Next/KernelSU-Next -b legacy drivers/kernelsu
 fi
 
-# 2. Fix Directory Path Errors in Kconfig and Makefile
-# Your logs showed "can't open file" because of an extra '/kernel' in the path
+# 2. Fix Directory Path Errors
+# Automatically correct Makefile and Kconfig to remove the incorrect '/kernel' path
 sed -i 's|drivers/kernelsu/kernel/Kconfig|drivers/kernelsu/Kconfig|g' drivers/Kconfig
 sed -i 's|obj-$(CONFIG_KSU) += kernelsu/kernel/|obj-$(CONFIG_KSU) += kernelsu/|g' drivers/Makefile
 
@@ -58,17 +57,15 @@ make_fun "${KERNEL_DEFCONFIG}"
 
 # 4. Apply Config Overrides
 chmod +x scripts/config
-
-# Enable KSU and necessary filesystem support
 ./scripts/config --file out/.config -e KSU
 ./scripts/config --file out/.config -d KSU_WITH_KPROBES
 ./scripts/config --file out/.config -e OVERLAY_FS
 
-# Apply your previous driver fixes for MTK hardware
+# Hardware fixes for MTK drivers
 ./scripts/config --file out/.config -e MTK_LCM
 ./scripts/config --file out/.config -e TOUCHSCREEN_MTK
 ./scripts/config --file out/.config -e MTK_BATTERY_CHARGER_ALL
 
 # 5. Final Build
-# CHANGED: Lowered job count to -j2 to prevent the "Segmentation fault" (OOM)
-make_fun -j2 2>&1 | tee build.log
+# Using -j4 to balance speed and RAM usage to avoid Segmentation Faults
+make_fun -j4 2>&1 | tee build.log
