@@ -63,4 +63,4 @@ chmod +x scripts/config
 ./scripts/config --file out/.config -e MTK_BATTERY_CHARGER_ALL
 
 # 4. Final Build
-make_fun -j"$(nproc --all)" 2>&1 | tee build.log
+make_fun -j2"$(nproc --all)" 2>&1 | tee build.log
