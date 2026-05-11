@@ -41,31 +41,22 @@ PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:/bin"
 # Enter Kernel root directory
 cd "${KERNEL_SRC}" || exit 1
 
-# ========================================================
-# KERNELSU SETUP STEPS (Add them here)
-# ========================================================
+# ... (after cd into KERNEL_SRC) ...
 
-# 1. Prepare KernelSU folder in drivers/
+# 1. Clone KernelSU v0.9.5 into drivers/kernelsu
 if [ ! -d "drivers/kernelsu" ]; then
     git clone https://github.com/tiann/KernelSU -b v0.9.5 drivers/kernelsu
 fi
 
-# 2. Ensure Makefile is patched (This checks if your manual edit exists)
-if ! grep -q "kernelsu" drivers/Makefile; then
-    echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
-fi
-
-# 3. Generate Base Config
+# 2. Start Compiling
 make_fun "${KERNEL_DEFCONFIG}"
 
-# 4. Force Enable KSU and dependencies via your scripts/config
+# 3. Use your scripts/config to enable KSU
+# We disable KPROBES because you are using manual hooks
 chmod +x scripts/config
 ./scripts/config --file out/.config -e KSU
-./scripts/config --file out/.config -d KSU_WITH_KPROBES # Since you use manual hooks
+./scripts/config --file out/.config -d KSU_WITH_KPROBES
 ./scripts/config --file out/.config -e OVERLAY_FS
 
-# ========================================================
-# START COMPILATION
-# ========================================================
-
+# 4. Final Build
 make_fun -j"$(nproc --all)" 2>&1 | tee build.log
