@@ -1,0 +1,62 @@
+name: Extract A.15 Firmware Assets
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install gdown
+        run: pip install gdown
+
+      - name: Download Firmware from Google Drive
+        run: |
+          gdown --id 187w6fe7v8AZNuo7O62R1RKiTBjCtEfS7 -O firmware.zip
+
+      - name: List All Files
+        run: |
+          echo "### Contents of the firmware package:"
+          unzip -l firmware.zip
+
+      - name: Extract vendor.img and boot.img
+        run: |
+          # Create directory for extraction
+          mkdir -p extracted_files
+          
+          # Extract specific files using wildcards to handle potential subfolders
+          unzip firmware.zip "*vendor.img*" "*boot.img*" -d extracted_files/
+          
+          # Find and move them to the root directory for packaging
+          find extracted_files/ -name "vendor.img" -exec mv {} . \;
+          find extracted_files/ -name "boot.img" -exec mv {} . \;
+
+      - name: Compress Images into tar.xz
+        run: |
+          tar -cvJf Oppo_A31_A15_Images.tar.xz vendor.img boot.img
+
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: A.15-Assets
+          name: Oppo A31 A.15 Partition Images
+          body: |
+            Extracted from Oppo_A31_CPH2015_EX_11_A.15 firmware.
+            Files included:
+            - boot.img
+            - vendor.img
+          files: Oppo_A31_A15_Images.tar.xz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
