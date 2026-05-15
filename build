@@ -3,8 +3,8 @@
 set -e -x
 
 # Kernel Source
-KERNEL_SOURCE="https://github.com/ansh-m14x/Kernal-A31-6765"
-KERNEL_BRANCH="ksu"
+KERNEL_SOURCE="https://github.com/ansh-m14x/kernel-oppo-a31"
+KERNEL_BRANCH="patching"
 KERNEL_DEFCONFIG="oppo6765_19581_defconfig"
 
 # Prebuilt Clang Toolchain (AOSP)
@@ -45,32 +45,6 @@ PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:/bin"
 
 # Enter Kernel root directory
 cd "${KERNEL_SRC}" || exit 1
-# KernelSU Integration
-# We run this BEFORE the defconfig so the build system recognizes the KSU files.
-echo "--- Integrating KernelSU ---"
-curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
-# KernelSU - Disable if not building one.
-# curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-# Manual KSU Integration for Non-GKI
-echo "--- Integrating KernelSU (Manual Method) ---"
-cd "${KERNEL_SRC}"
-
-# 1. Clone the real source
-rm -rf KernelSU
-git clone https://github.com/tiann/KernelSU -b main
-
-# 2. Move the kernel driver code into the drivers folder
-rm -rf drivers/kernelsu
-cp -r KernelSU/kernel drivers/kernelsu
-
-# 3. Force the build system to see it
-# Add to Makefile if not already there
-grep -q "obj-\$(CONFIG_KSU) += kernelsu/" drivers/Makefile || echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
-
-# Add to Kconfig before the final 'endmenu'
-grep -q "source \"drivers/kernelsu/Kconfig\"" drivers/Kconfig || sed -i '$i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
-
-echo "[+] KSU source integrated into drivers/kernelsu"
 
 # Start Compiling Kernel
 make_fun "${KERNEL_DEFCONFIG}"
