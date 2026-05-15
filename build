@@ -75,4 +75,3 @@ echo "[+] KSU source integrated into drivers/kernelsu"
 # Start Compiling Kernel
 make_fun "${KERNEL_DEFCONFIG}"
 make_fun -j"$(nproc --all)" 2>&1 | tee build.log 
-
