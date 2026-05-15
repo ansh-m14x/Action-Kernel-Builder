@@ -51,7 +51,28 @@ echo "--- Integrating KernelSU ---"
 curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
 # KernelSU - Disable if not building one.
 # curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+# Manual KSU Integration for Non-GKI
+echo "--- Integrating KernelSU (Manual Method) ---"
+cd "${KERNEL_SRC}"
+
+# 1. Clone the real source
+rm -rf KernelSU
+git clone https://github.com/tiann/KernelSU -b main
+
+# 2. Move the kernel driver code into the drivers folder
+rm -rf drivers/kernelsu
+cp -r KernelSU/kernel drivers/kernelsu
+
+# 3. Force the build system to see it
+# Add to Makefile if not already there
+grep -q "obj-\$(CONFIG_KSU) += kernelsu/" drivers/Makefile || echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
+
+# Add to Kconfig before the final 'endmenu'
+grep -q "source \"drivers/kernelsu/Kconfig\"" drivers/Kconfig || sed -i '$i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
+
+echo "[+] KSU source integrated into drivers/kernelsu"
 
 # Start Compiling Kernel
 make_fun "${KERNEL_DEFCONFIG}"
 make_fun -j"$(nproc --all)" 2>&1 | tee build.log 
+
