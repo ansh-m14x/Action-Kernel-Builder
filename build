@@ -2,7 +2,7 @@
 
 set -e -x
 
-# New Kernel Source & Branch
+# Kernel Source Tree & Branch Configurations
 KERNEL_SOURCE="https://github.com/ansh-m14x/Kernal-A31-6765"
 KERNEL_BRANCH="ksu"
 KERNEL_DEFCONFIG="oppo6765_19581_defconfig"
@@ -14,55 +14,57 @@ GCC_x64="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch
 GCC_x32="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9"
 GCC_BRANCH="master-kernel-build-2021"
 
-# Setup make Command
+# Setup make Command Execution Layout
 make_fun() {
 	make O=out ARCH=arm64 CC=clang HOSTCC=clang DTC=dtc \
 		CLANG_TRIPLE=aarch64-linux-gnu- \
 		CROSS_COMPILE=aarch64-linux-androidkernel- "$@"
 }
 
-# Work Path
+# Workspace Layout Paths
 WORK="${HOME}/work"
-
-# Kernel Folder Name
 KERNEL="myKernel"
-
-# Kernel Source Path
 KERNEL_SRC="${WORK}/${KERNEL}"
 
-# Prepare Directory
+# Prepare System Work Directory Locations
 mkdir -p "${WORK}"
 cd "${WORK}" || exit 1
 
-# Cloning all the Necessary files
+# Clone and Extract Dependency Toolchains
 if [ ! -d clang ]; then mkdir clang && curl -Lsq "${CLANG_URL}" -o clang.tgz && tar -xzf clang.tgz -C clang; fi
 [ ! -d x64 ] && git clone --depth=1 "${GCC_x64}" -b "${GCC_BRANCH}" ./x64
 [ ! -d x32 ] && git clone --depth=1 "${GCC_x32}" -b "${GCC_BRANCH}" ./x32
 [ ! -d "${KERNEL}" ] && git clone --depth=1 "${KERNEL_SOURCE}" -b "${KERNEL_BRANCH}" "${KERNEL}"
 
-# Setting Toolchain Path
+# Export Paths for Toolchain Compilation Environment
 PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:/bin"
 
-# Enter Kernel root directory
+# Jump directly into Kernel Root Directory
 cd "${KERNEL_SRC}" || exit 1
 
 # === KernelSU Automated Integration Setup ===
-# 1. Dynamically initialize and add the official KernelSU submodule tracking maps
+# 1. Fetch the actual KernelSU driver source files securely
 if [ ! -d "KernelSU" ] || [ -z "$(ls -A KernelSU 2>/dev/null)" ]; then
 	git submodule add -f https://github.com/tiann/KernelSU KernelSU || true
 	git submodule update --init --recursive
 fi
 
-# 2. Automatically generate the identical relative symlink inside the drivers directory
+# 2. Build the precise universal relative symlink inside the drivers subsystem
 cd drivers
 ln -sf ../KernelSU/kernel kernelsu
 cd ..
 
-# 3. Inject compilation hooks dynamically so they never get wiped out by git resets
-echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
+# 3. Force overlay filesystem enablement dynamically into defconfig
+echo "CONFIG_OVERLAY_FS=y" >> arch/arm64/configs/oppo6765_19581_defconfig
+
+# 4. Inject compilation hooks on LINE 1 of drivers/Makefile as an unconditional target (obj-y)
+# This ignores defconfig syntax locks and forces it to build FIRST thing in the drivers block!
+sed -i '1i\\obj-y += kernelsu/' drivers/Makefile
 echo 'source "drivers/kernelsu/Kconfig"' >> drivers/Kconfig
 # ============================================
 
-# Start Compiling Kernel
+# Initialize Defconfig Generation Map
 make_fun "${KERNEL_DEFCONFIG}"
+
+# Fire up multi-core Compilation Phase
 make_fun -j"$(nproc --all)" 2>&1 | tee build.log
