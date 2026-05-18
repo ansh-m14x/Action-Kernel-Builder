@@ -16,9 +16,9 @@ GCC_BRANCH="master-kernel-build-2021"
 
 # Setup make Command
 make_fun() {
- make O=out ARCH=arm64 CC=clang HOSTCC=clang DTC=dtc \
-  CLANG_TRIPLE=aarch64-linux-gnu- \
-  CROSS_COMPILE=aarch64-linux-androidkernel- "$@"
+	make O=out ARCH=arm64 CC=clang HOSTCC=clang DTC=dtc \
+		CLANG_TRIPLE=aarch64-linux-gnu- \
+		CROSS_COMPILE=aarch64-linux-androidkernel- "$@"
 }
 
 # Work Path
@@ -48,10 +48,7 @@ cd "${KERNEL_SRC}" || exit 1
 
 # KernelSU - Disable if not building one.
 # curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-git clone -b legacy https://github.com /KernelSU-Next/KernelSU-Next.git drivers/kernelsu
-
-bash kernelsu/kernel/setup.sh 
 
 # Start Compiling Kernel
 make_fun "${KERNEL_DEFCONFIG}"
-make_fun -j"$(nproc --all)" 2>&1 | tee build.log
+make_fun -j"$(nproc --all)" 2>&1 | tee build.log 
