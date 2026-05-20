@@ -18,8 +18,7 @@ GCC_BRANCH="master-kernel-build-2021"
 WORK="${HOME}/work"
 KERNEL="myKernel"
 KERNEL_SRC="${WORK}/${KERNEL}"
-NH_CONFIG="${WORK}/nethunter.config" # Ensure this file exists in your work folder
-
+NH_CONFIG="${KERNEL_SRC}/arch/arm64/configs/nethunter.config"
 # --- Environment Setup ---
 mkdir -p "${WORK}"
 cd "${WORK}" || exit 1
