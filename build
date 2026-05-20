@@ -18,7 +18,9 @@ GCC_BRANCH="master-kernel-build-2021"
 WORK="${HOME}/work"
 KERNEL="myKernel"
 KERNEL_SRC="${WORK}/${KERNEL}"
-NH_CONFIG="${KERNEL_SRC}/arch/arm64/configs/nethunter.config"
+# Ensure this file is placed at ~/work/nethunter.config before running the script
+NH_CONFIG="${WORK}/nethunter.config" 
+
 # --- Environment Setup ---
 mkdir -p "${WORK}"
 cd "${WORK}" || exit 1
@@ -37,7 +39,6 @@ export PATH
 cd "${KERNEL_SRC}" || exit 1
 
 # Setup make Command
-# NOTE: If you experience Wi-Fi issues, change CC=clang to CC=aarch64-linux-android-gcc
 make_fun() {
     make O=out ARCH=arm64 \
         CC=clang HOSTCC=clang \
@@ -47,11 +48,20 @@ make_fun() {
 
 # 1. Clean previous build
 rm -rf out
+mkdir -p out
 
-# 2. Merge NetHunter Config over Base Defconfig
-echo "Merging configurations..."
-./scripts/kconfig/merge_config.sh -O out arch/arm64/configs/"${KERNEL_DEFCONFIG}" "${NH_CONFIG}"
+# 2. Check for the config file and merge
+if [ -f "$NH_CONFIG" ]; then
+    echo "Merging configurations..."
+    ./scripts/kconfig/merge_config.sh -O out arch/arm64/configs/"${KERNEL_DEFCONFIG}" "${NH_CONFIG}"
+else
+    echo "ERROR: nethunter.config not found at ${NH_CONFIG}"
+    exit 1
+fi
 
-# 3. Compile
+# 3. Finalize configuration
+make_fun olddefconfig
+
+# 4. Compile
 echo "Starting kernel compilation..."
 make_fun -j"$(nproc --all)" 2>&1 | tee build.log
